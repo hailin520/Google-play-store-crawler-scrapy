@@ -8,6 +8,8 @@ from scrapy.linkextractors.sgml import SgmlLinkExtractor
 from scrapy.linkextractors import LinkExtractor
 from scrapy.http import FormRequest
 from app.items import GoogleItem
+from datetime import datetime
+from scrapy.http import Request
 
 
 class GoogleSpider(CrawlSpider):
@@ -57,7 +59,7 @@ class GoogleSpider(CrawlSpider):
 
         item['privacyPolicy'] = response.xpath("//a[contains(text(), 'Privacy Policy')]").xpath("@href").get(default='not-found')
 
-        item['Price'] = response.xpath("//button[contains(text(), 'Buy')]/text()").get(default='free').split(" ")[0]
+        item['Price'] = response.xpath("//button[contains(text(), 'Buy')]/text()").get(default='not-found').split(" ")[0]
 
         item['description'] = " ".join(response.xpath("//div[@class='DWPxHb']/span/div[1]/text()").getall())
 
@@ -66,6 +68,8 @@ class GoogleSpider(CrawlSpider):
         item['NumberOfreviews'] = response.xpath("//div[@class='dNLKff']/c-wiz/span[@class='AYi5wd TBRnV']/span[1]/text()").get(default='not-found')
 
         item['continued'] = True
+
+        item['timeStamp'] = str(datetime.now())
 
         doc_url = "https://play.google.com/store/xhr/getdoc"
         doc_form = {"ids": item['appid'], "xhr": '1'}
@@ -83,9 +87,31 @@ class GoogleSpider(CrawlSpider):
                 if text not in item['permissions']:
                     item['permissions'].append(text)
 
+        if item['privacyPolicy'] != 'not-found':
+            yield Request(url=item['privacyPolicy'], callback=self.parse_priv, meta={'item':item}, dont_filter=True)
+        else:
+            item['privacyPolicyContent'] = 'not-found'
             for key, value in item.items():
                 if type(value) == list:
                     item[key] = [x.encode('utf-8') for x in value]
                 if type(value) == str or type(value) == unicode:
                     item[key] = value.encode('utf-8')
             yield item
+
+
+    def parse_priv(self, response):
+        item = response.meta['item']
+        item['privacyPolicyContent'] = " ".join(response.xpath("//body/text()").getall()).replace("\n", "").replace("\r", "")
+        if 'the' not in item['privacyPolicyContent'].lower():
+            item['privacyPolicyContent'] = " ".join([x for x in response.xpath("//body//*[not(self::script)]/text()").getall() if "#" not in x]).replace("\n", "").replace("\r", "")
+            if len(item['privacyPolicyContent']) == 0 or 'the' not in item['privacyPolicyContent'].lower():
+               item['privacyPolicyContent'] = 'not-found' 
+
+        for key, value in item.items():
+            if type(value) == list:
+                item[key] = [x.encode('utf-8') for x in value]
+            if type(value) == str or type(value) == unicode:
+                item[key] = value.encode('utf-8')
+        yield item
+
+        
