@@ -57,7 +57,7 @@ class GoogleSpider(CrawlSpider):
 
         item['privacyPolicy'] = response.xpath("//a[contains(text(), 'Privacy Policy')]").xpath("@href").get(default='not-found')
 
-        item['Price'] = response.xpath("//button[contains(text(), 'Buy')]/text()").get(default='not-found').split(" ")[0]
+        item['Price'] = response.xpath("//button[contains(text(), 'Buy')]/text()").get(default='free').split(" ")[0]
 
         item['description'] = " ".join(response.xpath("//div[@class='DWPxHb']/span/div[1]/text()").getall())
 
@@ -86,6 +86,6 @@ class GoogleSpider(CrawlSpider):
             for key, value in item.items():
                 if type(value) == list:
                     item[key] = [x.encode('utf-8') for x in value]
-                if type(value) == str:
+                if type(value) == str or type(value) == unicode:
                     item[key] = value.encode('utf-8')
             yield item
